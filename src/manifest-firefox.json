@@ -17,7 +17,7 @@
   "content_scripts": [
     {
       "matches": ["https://*.instagram.com/*", "https://instagram.com/*"],
-      "js": ["/assets/js/content.js"],
+      "js": ["/assets/js/content.js", "/assets/js/jquery-3.7.1.min.js"],
       "css": ["/assets/graphs/main.css"],
       "run_at": "document_start"
     }

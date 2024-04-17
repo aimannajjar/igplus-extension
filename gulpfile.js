@@ -96,7 +96,7 @@ task('minifyCSS', async function () {
 //## Minify JS ##//
 task('minifyJS', async function () {
     src(['./src/assets/js/*.js'])
-        .pipe(uglify())
+        // .pipe(uglify())
         .pipe(insert.prepend(COPYRIGHT))
         .pipe(gulpFlatten({ includeParents: 4 }))
         .pipe(dest('./public/chromium/assets/js/'))

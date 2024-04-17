@@ -45,16 +45,6 @@ if (!chrome)
   chrome = browser;
 
 browser_cr.runtime.onInstalled.addListener(function (details) {
-  if (details.reason === 'install' || details.reason === 'update') {
-    chrome.storage.local.get('welcomePageDisplayed', function (data) {
-      if (!data.welcomePageDisplayed && details.reason === 'install') {
-        chrome.tabs.create({ url: "https://chesscolibri.pro/igp/welcome" });
-        chrome.storage.local.set({ 'welcomePageDisplayed': true });
-      } else if (details.reason === 'update') {
-        chrome.tabs.create({ url: "https://chesscolibri.pro/igp/update" });
-      }
-    });
-  }
 });
 
 

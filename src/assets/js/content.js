@@ -32,6 +32,7 @@
     ];
     const themes = ["light_green", "purple_dark", "kittens"];
     const browser_cr = chrome ? chrome : browser;
+    let init = true
 
     document.documentElement.style.opacity = 0;
 
@@ -158,22 +159,73 @@
       } else clearInterval(interval3);
     }
 
+    // function disableStories(ev_disable_stories, mp_disable_stories) {
+    //   console.log(ev_disable_stories, mp_disable_stories)
+    //   clearInterval(interval4);
+    //   setOrRemoveStylesOfItem("/assets/graphs/ev_disable_stories.css", ev_disable_stories, "ev_disable_stories");
+    //   setOrRemoveStylesOfItem("/assets/graphs/mp_disable_stories.css", mp_disable_stories, "mp_disable_stories");
+    //   function redirect() {
+    //     if (ev_disable_stories && window.location.href.includes("/stories/")) {
+    //       if (window.location?.assign) window.location.assign("/");
+    //       else window.location.href = "/";
+    //       console.log("IGPlus: Redirect");
+    //       clearInterval(interval4);
+    //     }
+    //   }
+    //   if (ev_disable_stories) {
+    //     interval4 = setInterval(redirect, 300);
+    //   } else clearInterval(interval4);
+    // }
+    var wip = false;
+    var z = 0;
+    function shuffleReels() {
+        if (!wip) {
+          wip = true;
+          var container = $($("main")[0]).children().eq(1) 
+          var reels = container.children();  
+          //for (var i = 0; i < 5; i++) {
+          $('div[style="height: 16px; width: 100%;"]').each(function() {
+            console.log("FOUND", this)
+            $(this).remove()
+          });
+          $(reels).find('div').css('margin-bottom', '10px');
+          var elems = reels.clone();
+          reels.sort(function() {
+            return (Math.round(Math.random()) - 0.5);
+          });
+    
+          for (var i = 0; i < reels.length; i++)
+            reels.eq(i).replaceWith(elems[i]);
+
+            // container.append(reels.splice(Math.floor(Math.random() * reels.length), 1)[0]);
+          //}
+          console.log("shuffled!!!!!!!", reels.length)
+          // $("main").off('DOMSubtreeModified', shuffle);
+          // $("main").on('DOMSubtreeModified', shuffle);
+          wip = false;
+        }      
+    }
+
     function disableStories(ev_disable_stories, mp_disable_stories) {
       console.log(ev_disable_stories, mp_disable_stories)
-      clearInterval(interval4);
-      setOrRemoveStylesOfItem("/assets/graphs/ev_disable_stories.css", ev_disable_stories, "ev_disable_stories");
-      setOrRemoveStylesOfItem("/assets/graphs/mp_disable_stories.css", mp_disable_stories, "mp_disable_stories");
-      function redirect() {
-        if (ev_disable_stories && window.location.href.includes("/stories/")) {
-          if (window.location?.assign) window.location.assign("/");
-          else window.location.href = "/";
-          console.log("IGPlus: Redirect");
-          clearInterval(interval4);
-        }
+      console.log("11111111111111111111111111111111111111111111")
+      console.log("hellloooo")
+      if (init) {
+        $("main").on('DOMSubtreeModified', shuffleReels);
+        init = false;
       }
+
+      setTimeout(() => {
+        shuffleReels()
+      }, 400)
+      
+
+      // clearInterval(interval4);
+      // setOrRemoveStylesOfItem("/assets/graphs/ev_disable_stories.css", ev_disable_stories, "ev_disable_stories");
+      // setOrRemoveStylesOfItem("/assets/graphs/mp_disable_stories.css", mp_disable_stories, "mp_disable_stories");
       if (ev_disable_stories) {
-        interval4 = setInterval(redirect, 300);
-      } else clearInterval(interval4);
+        console.log("222222222222222222222")
+      } else console.log("33333333333333");
     }
 
     // TODO: Make it work as fast as possible without window.location.href usage and Tabs permission.
@@ -502,3 +554,203 @@
     document.addEventListener("DOMContentLoaded", initRateMePopup, false);
   })();
 })(this);
+
+
+
+function TracingListener() {
+  //this.receivedData = [];
+}
+
+TracingListener.prototype =
+{
+  originalListener: null,
+  receivedData: null,   // array for incoming data.
+
+  onDataAvailable: function(request, context, inputStream, offset, count)
+  {
+      var binaryInputStream = CCIN("@mozilla.org/binaryinputstream;1", "nsIBinaryInputStream");
+      var storageStream = CCIN("@mozilla.org/storagestream;1", "nsIStorageStream");
+      binaryInputStream.setInputStream(inputStream);
+      storageStream.init(8192, count, null);
+
+      var binaryOutputStream = CCIN("@mozilla.org/binaryoutputstream;1",
+              "nsIBinaryOutputStream");
+
+      binaryOutputStream.setOutputStream(storageStream.getOutputStream(0));
+
+      // Copy received data as they come.
+      var data = binaryInputStream.readBytes(count);
+      //var data = inputStream.readBytes(count);
+
+      this.receivedData.push(data);
+
+      binaryOutputStream.writeBytes(data, count);
+      this.originalListener.onDataAvailable(request, context,storageStream.newInputStream(0), offset, count);
+  },
+
+  onStartRequest: function(request, context) {
+      this.receivedData = [];
+      this.originalListener.onStartRequest(request, context);
+  },
+
+  onStopRequest: function(request, context, statusCode)
+  {
+      try 
+      {
+          request.QueryInterface(Ci.nsIHttpChannel);
+
+          if (request.originalURI && piratequesting.baseURL == request.originalURI.prePath && request.originalURI.path.indexOf("/index.php?ajax=") == 0) 
+          {
+
+              var data = null;
+              if (request.requestMethod.toLowerCase() == "post") 
+              {
+                  var postText = this.readPostTextFromRequest(request, context);
+                  if (postText) 
+                      data = ((String)(postText)).parseQuery();
+
+              }
+              var date = Date.parse(request.getResponseHeader("Date"));
+              var responseSource = this.receivedData.join('');
+
+              //fix leading spaces bug
+              responseSource = responseSource.replace(/^\s+(\S[\s\S]+)/, "$1");
+
+              piratequesting.ProcessRawResponse(request.originalURI.spec, responseSource, date, data);
+          }
+      } 
+      catch (e) 
+      {
+          dumpError(e);
+      }
+      this.originalListener.onStopRequest(request, context, statusCode);
+  },
+
+  QueryInterface: function (aIID) {
+      if (aIID.equals(Ci.nsIStreamListener) ||
+          aIID.equals(Ci.nsISupports)) {
+          return this;
+      }
+      throw Components.results.NS_NOINTERFACE;
+  },
+  readPostTextFromRequest : function(request, context) {
+      try
+      {
+          var is = request.QueryInterface(Ci.nsIUploadChannel).uploadStream;
+          if (is)
+          {
+              var ss = is.QueryInterface(Ci.nsISeekableStream);
+              var prevOffset;
+              if (ss)
+              {
+                  prevOffset = ss.tell();
+                  ss.seek(Ci.nsISeekableStream.NS_SEEK_SET, 0);
+              }
+
+              // Read data from the stream..
+              var charset = "UTF-8";
+              var text = this.readFromStream(is, charset, true);
+
+              // Seek locks the file so, seek to the beginning only if necko hasn't read it yet,
+              // since necko doesn't seek to 0 before reading (at lest not till 459384 is fixed).
+              if (ss && prevOffset == 0) 
+                  ss.seek(Ci.nsISeekableStream.NS_SEEK_SET, 0);
+
+              return text;
+          }
+          else {
+              dump("Failed to Query Interface for upload stream.\n");
+          }
+      }
+      catch(exc)
+      {
+          dumpError(exc);
+      }
+
+      return null;
+  },
+  readFromStream : function(stream, charset, noClose) {
+
+      var sis = CCSV("@mozilla.org/binaryinputstream;1", "nsIBinaryInputStream");
+      sis.setInputStream(stream);
+
+      var segments = [];
+      for (var count = stream.available(); count; count = stream.available())
+          segments.push(sis.readBytes(count));
+
+      if (!noClose)
+          sis.close();
+
+      var text = segments.join("");
+      return text;
+  }
+
+}
+
+
+hRO = {
+
+  observe: function(request, aTopic, aData){
+      try {
+          if (typeof Cc == "undefined") {
+              var Cc = Components.classes;
+          }
+          if (typeof Ci == "undefined") {
+              var Ci = Components.interfaces;
+          }
+          if (aTopic == "http-on-examine-response") {
+              request.QueryInterface(Ci.nsIHttpChannel);
+
+              if (request.originalURI && piratequesting.baseURL == request.originalURI.prePath && request.originalURI.path.indexOf("/index.php?ajax=") == 0) {
+                  var newListener = new TracingListener();
+                  request.QueryInterface(Ci.nsITraceableChannel);
+                  newListener.originalListener = request.setNewListener(newListener);
+              }
+          } 
+      } catch (e) {
+          dump("\nhRO error: \n\tMessage: " + e.message + "\n\tFile: " + e.fileName + "  line: " + e.lineNumber + "\n");
+      }
+  },
+
+  QueryInterface: function(aIID){
+      if (typeof Cc == "undefined") {
+          var Cc = Components.classes;
+      }
+      if (typeof Ci == "undefined") {
+          var Ci = Components.interfaces;
+      }
+      if (aIID.equals(Ci.nsIObserver) ||
+      aIID.equals(Ci.nsISupports)) {
+          return this;
+      }
+
+      throw Components.results.NS_NOINTERFACE;
+
+  },
+};
+
+// var observerService = Components.classes["@mozilla.org/observer-service;1"]
+//   .getService(Components.interfaces.nsIObserverService);
+
+// observerService.addObserver(hRO,
+//   "http-on-examine-response", false);
+
+// function shuffleList(list) {   
+//   var origList = $(list).detach();
+//   var newList = origList.clone();
+
+//   for (var i = 0; i < newList.length; i++) {
+//       //select a random index; the number range will decrease by 1 on each iteration
+//       var randomIndex = randomInt(newList.length - i);
+
+//       //place the randomly-chosen element into our copy and remove from the original:
+//       newList[i] = origList.splice(randomIndex, 1);
+
+//       //place the element back into into the HTML
+//       $("#rndList").append(newList[i]);
+//   }
+// }
+
+// function randomInt(maxNum) { //returns a random integer from 0 to maxNum-1
+//   return Math.floor(Math.random() * maxNum);
+// }
